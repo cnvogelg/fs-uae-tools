@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+# fs-uae-sync
+
+import sys
+import argparse
+import configparser
+import os
+import subprocess
+import glob
+
+folders = (
+    "Kickstarts",
+    "Floppies",
+    "Hard Drives",
+    "CD-ROMs"
+)
+
+class Config:
+    server_host = None
+    server_path = None
+    rsync_bin = None
+    ssh_bin = None
+    scp_bin = None
+    fsuae_dir = None
+
+def read_config(cfg_path, args):
+    cfg_path = cfg_path or os.path.expanduser("~/.fs-uae-sync.cfg")
+    try:
+        cfg_file = configparser.ConfigParser()
+        # set defaults
+        cfg_file.add_section("server")
+        cfg_file.add_section("tools")
+        cfg_file.add_section("fsuae")
+        cfg_file.set("tools","rsync","/usr/bin/rsync")
+        cfg_file.set("tools","ssh","/usr/bin/ssh")
+        cfg_file.set("tools","scp","/usr/bin/scp")
+        cfg_file.set("fsuae","dir",os.path.expanduser("~/Documents/FS-UAE"))
+        # parse config
+        cfg_file.read(cfg_path)
+        cfg = Config()
+        # args or config
+        cfg.server_host = cfg_file.get('server', 'host')
+        cfg.server_path = cfg_file.get('server', 'path')
+        cfg.rsync_bin = args.rsync or cfg_file.get('tools', 'rsync')
+        cfg.ssh_bin = args.ssh or cfg_file.get('tools', 'ssh')
+        cfg.scp_bin = args.scp or cfg_file.get('tools', 'scp')
+        cfg.fsuae_dir = args.fsuae_dir or cfg_file.get('fsuae', 'dir')
+        return cfg
+    except configparser.Error as e:
+        print("ERROR:",e,"in",cfg_path)
+        return None
+
+def get_local_path(cfg, folder):
+    return cfg.fsuae_dir + "/" + folder + "/"
+
+def get_remote_path(cfg, folder):
+    path = cfg.server_path + "/" + folder + "/"
+    path = path.replace(" ", "\\ ")
+    return cfg.server_host + ":" + path
+
+def get_folder_files(args, cfg):
+    result = []
+    fsuae_dir = os.path.abspath(cfg.fsuae_dir)
+    n = len(fsuae_dir)
+    for path in args.files:
+        files = glob.glob(path)
+        if len(files) == 0:
+            # invalid path
+            print("ERROR: path not found:", path)
+            return None
+        else:
+            for p in files:
+                # expand path
+                pe = os.path.abspath(p)
+                common = os.path.commonprefix((fsuae_dir, pe))
+                if common != fsuae_dir or len(pe) < (n+2):
+                    print("ERROR: not in FS-UAE dir:", path)
+                    return None
+                else:
+                    # relative path
+                    rel_path = pe[n+1:]
+                    folder = rel_path.split(os.sep)[0]
+                    if folder not in folders:
+                        print("ERROR: folder unknown:", folder)
+                        return None
+                    remainder = rel_path[len(folder)+1:]
+                    result.append((folder, remainder, pe))
+    return result
+
+# ---------- update ----------
+
+def update_cmd(args, cfg):
+    extra = []
+    if args.dry_run:
+        extra.append('-n')
+    if args.verbose:
+        extra.append('--info=COPY,DEL')
+    if args.delete:
+        extra.append('--delete')
+    for f in folders:
+        if args.verbose:
+            print(f)
+        # rsync command
+        cmd = [cfg.rsync_bin, '-r'] + extra + \
+              [get_remote_path(cfg, f), get_local_path(cfg, f)]
+        if args.debug:
+            print(cmd)
+        subprocess.check_call(cmd)
+
+# ---------- add ----------
+
+def add_cmd(args, cfg):
+    files = get_folder_files(args, cfg)
+    for f in files:
+        # cmd
+        src_file = os.path.join(cfg.fsuae_dir, f[0], f[1])
+        dst_file = get_remote_path(cfg, f[0])
+        cmd = [cfg.scp_bin, src_file, dst_file]
+        if args.debug:
+            print(f, cmd)
+        subprocess.check_call(cmd)
+
+# ---------- rm ----------
+
+def rm_cmd(args, cfg):
+    pass
+
+# ---------- main ----------
+
+def main(args_in):
+    p = argparse.ArgumentParser(description="sync FS-UAE data with central server")
+    p.add_argument('-c', '--cfgfile',  help="specify config file")
+    p.add_argument('--rsync', help="rsync binary")
+    p.add_argument('--ssh', help="ssh binary")
+    p.add_argument('--scp', help="scp binary")
+    p.add_argument('--fsuae-dir', help="directory of FS-UAE data")
+    p.add_argument('-v', '--verbose', action='store_true', help="show infos")
+    p.add_argument('-d', '--debug', action='store_true', help="show internal debug infos")
+
+    sp = p.add_subparsers(dest='cmd', help='sub command')
+
+    # update command
+    sp_update = sp.add_parser('update')
+    sp_update.add_argument('-n', '--dry-run', action='store_true', help="do not execute commands")
+    sp_update.add_argument('-D', '--delete', action='store_true', help="delete all local files not on host")
+
+    # add command
+    sp_add = sp.add_parser('add')
+    sp_add.add_argument('-n', '--dry-run', action='store_true', help="do not execute commands")
+    sp_add.add_argument('files', nargs='+', help="files to be added")
+
+    # rm command
+    sp_rm = sp.add_parser('rm')
+    sp_rm.add_argument('-n', '--dry-run', action='store_true', help="do not execute commands")
+
+    # parse args
+    args = p.parse_args(args_in)
+
+    # read config file
+    cfg = read_config(args.cfgfile, args)
+    if cfg is None:
+        sys.exit(2)
+
+    # handle command
+    if args.cmd == 'update':
+        update_cmd(args, cfg)
+    elif args.cmd == 'add':
+        add_cmd(args, cfg)
+    elif args.cmd == 'rm':
+        rm_cmd(args, cfg)
+    else:
+        print("invalid command:", args.cmd)
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
