@@ -1,0 +1,46 @@
+#!/bin/bash
+# iterm_focus
+# a script that ensures that the iterm window/tab running this script is focused
+
+# is an iterm session?
+if [ "$ITERM_SESSION_ID" == "" ]; then
+  echo "no iterm2 session!"
+  exit 1
+fi
+
+id=${ITERM_SESSION_ID/*:/}
+
+# activate app
+osascript -l JavaScript >/dev/null <<EOF
+a = Application("iTerm2")
+
+b = Application("System Events")
+it = b.processes["iTerm2"]
+
+id = "${id}"
+
+// run through windows
+wins = a.windows()
+for(i=0;i<wins.length;i++) {
+  w = wins[i]
+  // run through windows tabs
+  tabs = w.tabs()
+  for(j=0;j<tabs.length;j++) {
+    t = tabs[j]
+    // run through sessions
+    sess = t.sessions()
+    for(k=0;k<sess.length;k++) {
+      s = sess[k]
+      if(s.id() == id) {
+        // found my session
+        a.activate()
+        wb = it.windows[w.name()]
+        wb.actions['AXRaise'].perform()
+        t.select()
+        s.select()
+      }
+    }
+  }
+}
+EOF
+
