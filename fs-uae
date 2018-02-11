@@ -110,7 +110,7 @@ def read_config(cfg_path, args):
 def get_os_dir():
     # get os
   if sys.platform.startswith('darwin'):
-    return "macosx"
+    return "macos"
   elif sys.platform.startswith('linux'):
     return "linux"
   elif sys.platform.startswith('win32'):
@@ -184,7 +184,7 @@ def run_fs_uae(args, cfg):
     logging.error("Can't find a FS-UAE binary!")
     return 7
   # osx bundle
-  if os_dir == 'macosx':
+  if os_dir == 'macos':
     fs_uae_bin = os.path.join(fs_uae_bin, "FS-UAE.app", "Contents", "MacOS", "fs-uae")
     if not os.path.isfile(fs_uae_bin):
       logging.error("Can't find a FS-UAE binary: '%s'", fs_uae_bin)
