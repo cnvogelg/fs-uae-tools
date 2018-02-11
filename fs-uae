@@ -3,12 +3,10 @@
 
 import sys
 import argparse
-import configparser
 import os
-import subprocess
-import glob
 import logging
-import platform
+
+import fsuaetools
 
 
 FORMAT='%(asctime)-15s  %(levelname)-6s  %(message)s'
@@ -50,8 +48,10 @@ def parse_args():
   # global options
   parser.add_argument('-C', '--config-file', default=None,
                       help='path of the configuration file')
-  parser.add_argument('-d', '--dev', default=False, action='store_true',
+  parser.add_argument('-d', '--dev-binary', default=False, action='store_true',
                       help='use development binary (otherwise release)')
+  parser.add_argument('-s', '--sys-binary', default=False, action='store_true',
+                      help='use system binary')
   parser.add_argument('-l', '--log-stdout', default=False, action='store_true',
                       help='FS-UAE logs to stdout')
   parser.add_argument('-x', '--extra-opts', default=None, action='append',
@@ -74,173 +74,29 @@ def parse_args():
   return parser.parse_args()
 
 
-class Config:
-  data_dir = None
-  bin_dev_dir = None
-  bin_rel_dir = None
-
-  def __repr__(self):
-    return "data_dir={},bin_dev_dir={},bin_rel_dir={}".format(
-      self.data_dir, self.bin_dev_dir, self.bin_rel_dir)
-
-
-def read_config(cfg_path, args):
-  cfg_path = cfg_path or os.path.expanduser("~/.fs-uae.cfg")
-  logging.info("reading config file '%s'", cfg_path)
-  try:
-      cfg_file = configparser.ConfigParser()
-      # set defaults
-      cfg_file.add_section("fs-uae")
-      cfg_file.set("fs-uae", "data-dir", "~/Documents/FS-UAE")
-      cfg_file.set("fs-uae", "bin-dev-dir", "~/fs-uae-dev")
-      cfg_file.set("fs-uae", "bin-rel-dir", "~/fs-uae-dev")
-      # parse config
-      cfg_file.read(cfg_path)
-      cfg = Config()
-      # args or config
-      cfg.data_dir = os.path.expanduser(args.data_dir or cfg_file.get('fs-uae', 'data-dir'))
-      cfg.bin_dev_dir = os.path.expanduser(args.bin_dev_dir or cfg_file.get('fs-uae', 'bin-dev-dir'))
-      cfg.bin_rel_dir = os.path.expanduser(args.bin_rel_dir or cfg_file.get('fs-uae', 'bin-rel-dir'))
-      return cfg
-  except configparser.Error as e:
-      print("ERROR in Config:", e ,"in", cfg_path)
-      return None
-
-
-def get_os_dir():
-    # get os
-  if sys.platform.startswith('darwin'):
-    return "macos"
-  elif sys.platform.startswith('linux'):
-    return "linux"
-  elif sys.platform.startswith('win32'):
-    return "windows"
-  else:
-    return None
-
-
-def get_arch():
-  machine = platform.machine().lower()
-  bits = platform.architecture()[0]
-  if machine in ["x86_64", "amd64", "i386", "i486", "i585", "i686"]:
-    if bits == "32bit":
-      return "x86"
-    elif bits == "64bit":
-      return "x86-64"
-  elif machine.startswith("power"):
-    if bits == "32bit":
-      return "ppc"
-
-
-def find_binary(bin_dir, os_name, arch, ver=None):
-  ver_glob = ver + "*" if ver is not None else "*"
-  glob_name = "fs-uae_" + ver_glob + "_" + os_name + "_" + arch
-  logging.debug("globbing: '%s'", glob_name)
-  glob_path = os.path.join(bin_dir, glob_name)
-  files = glob.glob(glob_path)
-  n = len(files)
-  if n == 0:
-    return None
-  elif n == 1:
-    return files[0]
-  else:
-    # sort by age
-    files = sorted(files, key=lambda x: os.stat(x).st_mtime)
-    return files[-1]
-
-
-def run_fs_uae(args, cfg):
-  # check dirs
-  data_dir = cfg.data_dir
-  logging.info("data directory: '%s'", data_dir)
-  if not os.path.isdir(data_dir):
-    logging.error("FS-UAE data directory not found: %s", data_dir)
-    return 2
-
-  # check bin dir
-  bin_dir = cfg.bin_dev_dir if args.dev else cfg.bin_rel_dir
-  logging.info("binary directory: '%s'", bin_dir)
-  if not os.path.isdir(bin_dir):
-    logging.error("FS-UAE binary directory not found: %s", bin_dir)
-    return 3
-
-  # check dist dir
-  os_dir = get_os_dir()
-  if os_dir is None:
-    logging.error("Unsupported OS!")
-    return 4
-  bin_path = os.path.join(bin_dir, "dist", os_dir)
-  if not os.path.isdir(bin_path):
-    logging.error("Bin dir does not exist: '%s'", bin_path)
-    return 5
-
-  # find suitable binary
-  arch = get_arch()
-  if arch is None:
-    logging.error("Unsupported arch!")
-    return 6
-  fs_uae_bin = find_binary(bin_path, os_dir, arch, ver=args.fs_uae_version)
-  if fs_uae_bin is None:
-    logging.error("Can't find a FS-UAE binary!")
-    return 7
-  # osx bundle
-  if os_dir == 'macos':
-    fs_uae_bin = os.path.join(fs_uae_bin, "FS-UAE.app", "Contents", "MacOS", "fs-uae")
-    if not os.path.isfile(fs_uae_bin):
-      logging.error("Can't find a FS-UAE binary: '%s'", fs_uae_bin)
-      return 8
-  logging.info("FS-UAE binary: '%s'", fs_uae_bin)
-
-  # launch with config
-  cfg_file = None
-  cfg = args.fs_uae_config
-  if cfg is not None:
-    if not cfg.endswith(".fs-uae"):
-      cfg = cfg + ".fs-uae"
-    if os.path.isabs(cfg):
-      cfg_file = cfg
-    else:
-      cfg_file = os.path.join(data_dir, "Configurations", cfg)
-    logging.info("config file: '%s'", cfg_file)
-    if not os.path.isfile(cfg_file):
-      logging.error("Can't find config file: '%s'", cfg_file)
-      return 9
-
-  # build command line
-  cmd = [fs_uae_bin]
-  # log to stdout
-  if args.log_stdout:
-    cmd.append('--stdout')
-  # extra options
-  if args.extra_opts is not None:
-    for x in args.extra_opts:
-      cmd.append('--' + x)
-  # config file
-  if cfg_file is not None:
-    cmd.append(cfg_file)
-  logging.info("cmd: %r", cmd)
-
-  # launch fs-uae
-  try:
-    return subprocess.call(cmd)
-  except KeyboardInterrupt:
-    print("*** Abort")
-
-
 # ----- main -----
 def main():
   # parse args and init logging
   args = parse_args()
   setup_logging(args)
-  cfg = read_config(args.config_file, args)
-  if cfg is None:
-    return 1
+
+  cfg = fsuaetools.Config()
+  cfg.read(args.config_file)
+  cfg.set_data_dir(args.data_dir)
+  cfg.set_bin_dev_dir(args.bin_dev_dir)
+  cfg.set_bin_rel_dir(args.bin_rel_dir)
+
   # run command
-  try:
-    return run_fs_uae(args, cfg)
-  except IOError as e:
-    logging.error("Exception: [%s] %s", type(e), e)
-    return 1
+  runner = fsuaetools.Runner()
+  if args.sys_binary:
+    bin_dir = runner.get_default_bin_dir()
+  elif args.dev_binary:
+    bin_dir = runner.find_bin_dir(cfg.get_bin_dev_dir(), ver=args.fs_uae_version)
+  else:
+    bin_dir = runner.find_bin_dir(cfg.get_bin_rel_dir(), ver=args.fs_uae_version)
+  return runner.run(bin_dir=bin_dir, data_dir=cfg.get_data_dir(),
+                    cfg_file=args.config_file, log_stdout=args.log_stdout,
+                    extra_opts=args.extra_opts)
 
 
 # ----- entry point -----
