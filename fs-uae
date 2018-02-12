@@ -9,95 +9,37 @@ import logging
 import fsuaetools
 
 
-FORMAT='%(asctime)-15s  %(levelname)-6s  %(message)s'
-DESCRIPTION='cli launcher for FS-UAE'
+def main():
+  app = fsuaetools.App('launcher script for FS-UAE')
 
-
-def add_logging_options(parser):
-  """add logging options (-v, -q, -L) to an argparse"""
-  parser.add_argument('-v', '--verbose', action='count', default=0,
-                      help="be more verbose")
-  parser.add_argument('-q', '--quiet', action='store_true', default=False,
-                      help="be totally quiet")
-  parser.add_argument('-L', '--log-file', default=None,
-                      help="write tool output to log file")
-
-
-def setup_logging(opts):
-  # setup level
-  if opts.quiet:
-    level = 100
-  elif opts.log_file is not None:
-    level = logging.DEBUG
-  else:
-    v = opts.verbose
-    if v == 0:
-      level = logging.WARN
-    elif v == 1:
-      level = logging.INFO
-    else:
-      level = logging.DEBUG
-  # setup logging
-  logging.basicConfig(format=FORMAT, filename=opts.log_file, level=level)
-
-
-def parse_args():
-  """parse args and return (args, opts)"""
-  parser = argparse.ArgumentParser(description=DESCRIPTION)
-
-  # global options
-  parser.add_argument('-C', '--config-file', default=None,
-                      help='path of the configuration file')
-  parser.add_argument('-d', '--dev-binary', default=False, action='store_true',
-                      help='use development binary (otherwise release)')
-  parser.add_argument('-s', '--sys-binary', default=False, action='store_true',
-                      help='use system binary')
+  # setup extra args
+  parser = app.get_parser()
   parser.add_argument('-l', '--log-stdout', default=False, action='store_true',
                       help='FS-UAE logs to stdout')
-  parser.add_argument('-x', '--extra-opts', default=None, action='append',
+  parser.add_argument('-x', '--extra-opts', default=[], action='append',
                       help='Pass-through FS-UAE options')
-  parser.add_argument('-V', '--fs-uae-version', default=None,
-                      help='Select FS-UAE version to run')
-  parser.add_argument('-F', '--data-dir', default=None,
-                      help='FS-UAE data directory, e.g. ~/Documents/FS-UAE')
-  parser.add_argument('-D', '--bin-dev-dir', default=None,
-                      help='FS-UAE binary directory of development builds')
-  parser.add_argument('-R', '--bin-rel-dir', default=None,
-                      help='FS-UAE binary directory of release builds')
-  add_logging_options(parser)
-
-  # arguments
   parser.add_argument('fs_uae_config', nargs='?', default=None,
                       help='configuration to launch. must have .fs-uae file in Configurations')
 
-  # parse
-  return parser.parse_args()
-
-
-# ----- main -----
-def main():
-  # parse args and init logging
-  args = parse_args()
-  setup_logging(args)
-
-  cfg = fsuaetools.Config()
-  cfg.read(args.config_file)
-  cfg.set_data_dir(args.data_dir)
-  cfg.set_bin_dev_dir(args.bin_dev_dir)
-  cfg.set_bin_rel_dir(args.bin_rel_dir)
+  app.parse_args()
 
   # run command
+  cfg = app.get_config()
+  args = app.get_args()
+
   runner = fsuaetools.Runner()
+
+  # pick binary dir
   if args.sys_binary:
     bin_dir = runner.get_default_bin_dir()
   elif args.dev_binary:
     bin_dir = runner.find_bin_dir(cfg.get_bin_dev_dir(), ver=args.fs_uae_version)
   else:
     bin_dir = runner.find_bin_dir(cfg.get_bin_rel_dir(), ver=args.fs_uae_version)
-  return runner.run(bin_dir=bin_dir, data_dir=cfg.get_data_dir(),
-                    cfg_file=args.config_file, log_stdout=args.log_stdout,
-                    extra_opts=args.extra_opts)
 
+  runner.setup(bin_dir, cfg.get_data_dir())
+  runner.run(*args.extra_opts,
+             cfg_file=args.fs_uae_config, log_stdout=args.log_stdout)
 
 # ----- entry point -----
 if __name__ == '__main__':

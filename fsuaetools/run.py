@@ -7,14 +7,9 @@ import subprocess
 
 class Runner(object):
 
-  NO_ERROR = 0
-  ERROR_DATA_DIR_NOT_FOUND = 1
-  ERROR_BIN_DIR_NOT_FOUND = 2
-  ERROR_FSUAE_NOT_FOUND = 3
-  ERROR_CONFIG_NOT_FOUND = 4
-
   def __init__(self):
-    pass
+    self.data_dir = None
+    self.fs_uae_bin = None
 
   def get_os_dir(self):
     """get os directory of FS-UAE"""
@@ -91,21 +86,20 @@ class Runner(object):
       files = sorted(files, key=lambda x: os.stat(x).st_mtime)
       return files[-1]
 
-  def run(self, bin_dir, data_dir=None, bin_name=None, cfg_file=None,
-          log_stdout=False, extra_opts=None):
+  def setup(self, bin_dir, data_dir=None, bin_name=None):
     # check data dir
     if data_dir is None:
       data_dir = os.path.expanduser("~/Documents/FS-UAE")
     logging.info("data directory: '%s'", data_dir)
     if not os.path.isdir(data_dir):
       logging.error("FS-UAE data directory not found: %s", data_dir)
-      return self.ERROR_DATA_DIR_NOT_FOUND
+      raise Error("data directory not found!")
 
     # check bin dir
     logging.info("binary directory: '%s'", bin_dir)
     if bin_dir is None or not os.path.isdir(bin_dir):
       logging.error("FS-UAE binary directory not found: %s", bin_dir)
-      return self.ERROR_BIN_DIR_NOT_FOUND
+      raise Error("bin dir not found!")
 
     # binary name
     if bin_name is None:
@@ -117,28 +111,31 @@ class Runner(object):
     logging.info("FS-UAE binary: '%s'", fs_uae_bin)
     if not os.path.isfile(fs_uae_bin) or not os.access(fs_uae_bin, os.X_OK):
       logging.error("FS-UAE binary not found: %s", fs_uae_bin)
-      return self.ERROR_FS_UAE_NOT_FOUND
+      raise Error("fs-uae binary not found!")
 
+    # store binary
+    self.data_dir = data_dir
+    self.fs_uae_bin = fs_uae_bin
+
+  def run(self, *args, cfg_file=None, log_stdout=False):
     # launch with config?
     if cfg_file is not None:
       if not cfg_file.endswith(".fs-uae"):
         cfg_file = cfg_file + ".fs-uae"
       if not os.path.isabs(cfg_file) or not os.path.exists(cfg_file):
-        cfg_file = os.path.join(data_dir, "Configurations", cfg_file)
+        cfg_file = os.path.join(self.data_dir, "Configurations", cfg_file)
       logging.info("config file: '%s'", cfg_file)
       if not os.path.isfile(cfg_file):
         logging.error("Can't find config file: '%s'", cfg_file)
-        return self.ERROR_CONFIG_NOT_FOUND
+        raise Error("can't find config file!")
 
     # build command line
-    cmd = [fs_uae_bin]
+    cmd = [self.fs_uae_bin]
     # log to stdout
     if log_stdout:
       cmd.append('--stdout')
     # extra options
-    if extra_opts is not None:
-      for x in extra_opts:
-        cmd.append('--' + x)
+    cmd += args
     # config file
     if cfg_file is not None:
       cmd.append(cfg_file)
