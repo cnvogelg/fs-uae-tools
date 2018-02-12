@@ -22,24 +22,11 @@ def main():
                       help='configuration to launch. must have .fs-uae file in Configurations')
 
   app.parse_args()
+  app.setup()
 
-  # run command
-  cfg = app.get_config()
   args = app.get_args()
-
-  runner = fsuaetools.Runner()
-
-  # pick binary dir
-  if args.sys_binary:
-    bin_dir = runner.get_default_bin_dir()
-  elif args.dev_binary:
-    bin_dir = runner.find_bin_dir(cfg.get_bin_dev_dir(), ver=args.fs_uae_version)
-  else:
-    bin_dir = runner.find_bin_dir(cfg.get_bin_rel_dir(), ver=args.fs_uae_version)
-
-  runner.setup(bin_dir, cfg.get_data_dir())
-  runner.run(*args.extra_opts,
-             cfg_file=args.fs_uae_config, log_stdout=args.log_stdout)
+  app.run(*args.extra_opts,
+          cfg_file=args.fs_uae_config, log_stdout=args.log_stdout)
 
 # ----- entry point -----
 if __name__ == '__main__':

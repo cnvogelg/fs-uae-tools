@@ -2,6 +2,7 @@ import argparse
 import logging
 
 from .config import Config
+from .run import Runner
 
 class App(object):
 
@@ -13,6 +14,7 @@ class App(object):
     self._add_logging_options()
     self._add_runner_options()
     self.cfg = Config()
+    self.runner = None
 
   def _add_logging_options(self):
     """add logging options (-v, -q, -L) to an argparse"""
@@ -76,3 +78,25 @@ class App(object):
 
   def get_config(self):
     return self.cfg
+
+  def setup(self, bin_dir=None, data_dir=None):
+    cfg = self.cfg
+    args = self.args
+    runner = Runner()
+    # pick binary dir
+    if bin_dir is None:
+      if args.sys_binary:
+        bin_dir = runner.get_default_bin_dir()
+      elif args.dev_binary:
+        bin_dir = runner.find_bin_dir(cfg.get_bin_dev_dir(), ver=args.fs_uae_version)
+      else:
+        bin_dir = runner.find_bin_dir(cfg.get_bin_rel_dir(), ver=args.fs_uae_version)
+    # pick data dir
+    if data_dir is None:
+      data_dir = cfg.get_data_dir()
+    # setup runner
+    runner.setup(bin_dir, data_dir)
+    self.runner = runner
+
+  def run(self, *args, cfg_file=None, log_stdout=False):
+    self.runner.run(*args, cfg_file=cfg_file, log_stdout=log_stdout)

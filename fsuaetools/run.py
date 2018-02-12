@@ -93,13 +93,13 @@ class Runner(object):
     logging.info("data directory: '%s'", data_dir)
     if not os.path.isdir(data_dir):
       logging.error("FS-UAE data directory not found: %s", data_dir)
-      raise Error("data directory not found!")
+      raise IOError("data directory not found!")
 
     # check bin dir
     logging.info("binary directory: '%s'", bin_dir)
     if bin_dir is None or not os.path.isdir(bin_dir):
       logging.error("FS-UAE binary directory not found: %s", bin_dir)
-      raise Error("bin dir not found!")
+      raise IOError("bin dir not found!")
 
     # binary name
     if bin_name is None:
@@ -111,7 +111,7 @@ class Runner(object):
     logging.info("FS-UAE binary: '%s'", fs_uae_bin)
     if not os.path.isfile(fs_uae_bin) or not os.access(fs_uae_bin, os.X_OK):
       logging.error("FS-UAE binary not found: %s", fs_uae_bin)
-      raise Error("fs-uae binary not found!")
+      raise IOError("fs-uae binary not found!")
 
     # store binary
     self.data_dir = data_dir
@@ -127,7 +127,7 @@ class Runner(object):
       logging.info("config file: '%s'", cfg_file)
       if not os.path.isfile(cfg_file):
         logging.error("Can't find config file: '%s'", cfg_file)
-        raise Error("can't find config file!")
+        raise IOError("can't find config file!")
 
     # build command line
     cmd = [self.fs_uae_bin]
