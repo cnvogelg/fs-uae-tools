@@ -10,6 +10,9 @@ class Config(object):
     self.cfg.set("fs-uae", "data-dir", "~/Documents/FS-UAE")
     self.cfg.set("fs-uae", "bin-dev-dir", "~/fs-uae-dev")
     self.cfg.set("fs-uae", "bin-rel-dir", "~/fs-uae-dev")
+    self.cfg.add_section("cli")
+    self.cfg.set("cli", "work-dir", "~/.fs-uae-cli")
+    self.cfg.set("cli", "wb-root", "~/amiga/Workbench3.1")
 
   def read(self, cfg_path=None):
     if cfg_path is None:
@@ -37,3 +40,19 @@ class Config(object):
 
   def get_bin_rel_dir(self):
     return os.path.expanduser(self.cfg.get('fs-uae', 'bin-rel-dir'))
+
+  # cli
+
+  def set_cli_work_dir(self, work_dir):
+    if work_dir is not None:
+      self.cfg.set("cli", "work-dir", work_dir)
+
+  def get_cli_work_dir(self):
+    return os.path.expanduser(self.cfg.get('cli', 'work-dir'))
+
+  def set_cli_wb_root(self, work_dir):
+    if work_dir is not None:
+      self.cfg.set("cli", "wb-root", work_dir)
+
+  def get_cli_wb_root(self):
+    return os.path.expanduser(self.cfg.get('cli', 'wb-root'))

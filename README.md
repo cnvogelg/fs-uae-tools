@@ -9,3 +9,10 @@ between machines.
 
 A command line launcher for FS-UAE suitable to run the emulator directly
 from a build directory.
+
+### Mac Setup
+
+```
+defaults write no.fengestad.fs-uae ApplePersistenceIgnoreState NO
+```
+

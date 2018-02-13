@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+# fs-uae-cli
+
+import sys
+import argparse
+import os
+import logging
+import shutil
+import subprocess
+import pty
+import select
+import termios
+import tty
+
+import fsuaetools
+
+
+def setup_work_dir(work_dir, wb_root, force):
+  dirs = ['S']
+  files = [
+    'L/aux-handler',
+    'C/Mount',
+    'Devs/serial.device'
+  ]
+  # create work dir
+  fs_root = os.path.join(work_dir, "root")
+  if not os.path.isdir(fs_root):
+    logging.info("creating root dir: %s", fs_root)
+    os.makedirs(fs_root)
+  else:
+    logging.info("found root dir: %s", fs_root)
+
+  # setup dirs
+  for d in dirs:
+    dp = os.path.join(fs_root, d)
+    if not os.path.isdir(dp):
+      logging.info("create sub dir: %s", d)
+      os.makedirs(dp)
+    else:
+      logging.info("found sub dir: %s", d)
+
+  # setup files from wb root
+  for f in files:
+    src = os.path.join(wb_root, f)
+    dst = os.path.join(fs_root, f)
+    dst_dir = os.path.dirname(dst)
+    if not os.path.isdir(dst_dir):
+      logging.info("create sub dir: %s", dst_dir)
+      os.makedirs(dst_dir)
+    if not os.path.isfile(dst) or force:
+      if os.path.exists(dst):
+        os.remove(dst)
+      shutil.copy(src, dst)
+      logging.info("copy: %s -> %s", src, dst)
+
+
+def create_mountlist(work_dir):
+  ml_path = os.path.join(work_dir, "root", "Devs", "MountList")
+  logging.info("creating mountlist")
+  with open(ml_path, "w") as fh:
+    fh.write('''
+AUX:
+Handler         = L:Aux-Handler
+StackSize       = 1000
+Priority        = 5
+''')
+
+
+def create_startup_sequence(work_dir):
+  ss_path = os.path.join(work_dir, "root", "S", "Startup-Sequence")
+  logging.info("creating startup-sequence")
+  with open(ss_path, "w") as fh:
+    fh.write('''C:Mount AUX:
+newshell aux:
+''')
+
+
+def create_fsuae_config(work_dir, tty_name):
+  cfg_file = os.path.join(work_dir, "cfg.fs-uae")
+  root_fs = os.path.join(work_dir, "root")
+  logging.info("creating fsuae config")
+  with open(cfg_file, "w") as fh:
+    fh.write('''[config]
+amiga_model = A4000/040
+hard_drive_0 = {}
+window_hidden = 1
+serial_port = {}
+floppy_drive_volume = 0
+'''.format(root_fs, tty_name))
+  return cfg_file
+
+
+def setup_pty():
+  master, slave = pty.openpty()
+  if master == -1 or slave == -1:
+    raise IOError("no pty!")
+  tty_name = os.ttyname(slave)
+  tty.setraw(slave)
+  return master, slave, tty_name
+
+
+def close_pty(master, slave):
+  os.close(master)
+  os.close(slave)
+
+
+def setup_tty():
+  fd = sys.stdin.fileno()
+  old_settings = termios.tcgetattr(fd)
+  tty.setraw(fd)
+  return old_settings
+
+
+def restore_tty(old_settings):
+  fd = sys.stdin.fileno()
+  termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+
+def run_shell(fs_uae_bin, cfg_file, ser_fd):
+  cmd = [fs_uae_bin, cfg_file]
+  p = subprocess.Popen(cmd, bufsize=1)
+  stdin_fd = sys.stdin.fileno()
+  line = ""
+  stay = True
+  first_line = True
+  while stay:
+    rl = select.select([ser_fd, stdin_fd],[],[])[0]
+    # shell output
+    if ser_fd in rl:
+      buf = os.read(ser_fd, 1024)
+      s = buf.decode("ISO-8859-1")
+      sys.stdout.write(s)
+      sys.stdout.flush()
+      line += s
+      if '\n' in line:
+        if first_line:
+          first_line = False
+          subprocess.run('./iterm_focus')
+        if "endcli" in line or "endshell" in line:
+          stay = False
+        line = ""
+    # user input from stdin
+    if stdin_fd in rl:
+      c = sys.stdin.read(1)
+      if ord(c[0]) == 127: # DEL
+        c = chr(8) # Backspace
+      buf = c.encode("ISO-8859-1")
+      os.write(ser_fd, buf)
+  print("\rdone\r")
+  p.terminate()
+
+
+def main():
+  app = fsuaetools.App('launcher script for running CLI commands with headless FS-UAE')
+
+  # setup extra args
+  parser = app.get_parser()
+  parser.add_argument('-w', '--work-dir', default=None,
+                      help='working directory')
+  parser.add_argument('-r', '--wb-root', default=None,
+                      help='root directory of Workbench 3.1 installation')
+  parser.add_argument('-f', '--force', default=False, action='store_true',
+                      help='force recreation of work dir')
+  parser.add_argument('cmd', nargs='?', default=None,
+                      help='command to launch')
+
+  app.parse_args()
+
+  # overwrite settings
+  cfg = app.get_config()
+  args = app.get_args()
+  cfg.set_cli_work_dir(args.work_dir)
+  cfg.set_cli_wb_root(args.work_dir)
+
+  app.setup()
+
+  work_dir = cfg.get_cli_work_dir()
+  wb_root = cfg.get_cli_wb_root()
+  setup_work_dir(work_dir, wb_root, args.force)
+  create_mountlist(work_dir)
+  create_startup_sequence(work_dir)
+  master, slave, tty_name = setup_pty()
+  cfg_file = create_fsuae_config(work_dir, tty_name)
+  old_cfg = setup_tty()
+  try:
+    run_shell(app.get_fs_uae_bin(), cfg_file, master)
+  finally:
+    restore_tty(old_cfg)
+    close_pty(master, slave)
+
+
+# ----- entry point -----
+if __name__ == '__main__':
+  sys.exit(main())

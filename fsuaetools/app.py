@@ -98,5 +98,8 @@ class App(object):
     runner.setup(bin_dir, data_dir)
     self.runner = runner
 
+  def get_fs_uae_bin(self):
+    return self.runner.get_fs_uae_bin()
+
   def run(self, *args, cfg_file=None, log_stdout=False):
     self.runner.run(*args, cfg_file=cfg_file, log_stdout=log_stdout)

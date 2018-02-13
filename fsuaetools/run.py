@@ -117,6 +117,9 @@ class Runner(object):
     self.data_dir = data_dir
     self.fs_uae_bin = fs_uae_bin
 
+  def get_fs_uae_bin(self):
+    return self.fs_uae_bin
+
   def run(self, *args, cfg_file=None, log_stdout=False):
     # launch with config?
     if cfg_file is not None:
