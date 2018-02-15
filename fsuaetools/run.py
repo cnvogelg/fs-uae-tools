@@ -10,6 +10,7 @@ class Runner(object):
   def __init__(self):
     self.data_dir = None
     self.fs_uae_bin = None
+    self.proc = None
 
   def get_os_dir(self):
     """get os directory of FS-UAE"""
@@ -120,7 +121,7 @@ class Runner(object):
   def get_fs_uae_bin(self):
     return self.fs_uae_bin
 
-  def run(self, *args, cfg_file=None, log_stdout=False):
+  def _get_cfg_path(self, cfg_file):
     # launch with config?
     if cfg_file is not None:
       if not cfg_file.endswith(".fs-uae"):
@@ -131,7 +132,9 @@ class Runner(object):
       if not os.path.isfile(cfg_file):
         logging.error("Can't find config file: '%s'", cfg_file)
         raise IOError("can't find config file!")
+    return cfg_file
 
+  def _get_cmd_line(self, args, cfg_file, log_stdout):
     # build command line
     cmd = [self.fs_uae_bin]
     # log to stdout
@@ -141,11 +144,29 @@ class Runner(object):
     cmd += args
     # config file
     if cfg_file is not None:
-      cmd.append(cfg_file)
-    logging.info("cmd: %r", cmd)
+      cmd.append(self._get_cfg_path(cfg_file))
+    return cmd
 
+  def run(self, *args, cfg_file=None, log_stdout=False):
+    cmd = self._get_cmd_line(args, cfg_file, log_stdout)
+    logging.info("run cmd: %r", cmd)
     # launch fs-uae
     try:
       return subprocess.call(cmd)
     except KeyboardInterrupt:
       print("*** Abort")
+
+  def start(self, *args, cfg_file=None, log_stdout=False):
+    cmd = self._get_cmd_line(args, cfg_file, log_stdout)
+    logging.info("start cmd: %r", cmd)
+    self.proc = subprocess.Popen(cmd)
+
+  def stop(self):
+    if self.proc is None:
+      return
+    logging.info("stop proc")
+    # still running?
+    if self.proc.poll() is None:
+      logging.info("terminate proc")
+      self.proc.terminate()
+    self.proc = None

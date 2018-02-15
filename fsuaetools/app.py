@@ -103,3 +103,9 @@ class App(object):
 
   def run(self, *args, cfg_file=None, log_stdout=False):
     self.runner.run(*args, cfg_file=cfg_file, log_stdout=log_stdout)
+
+  def start(self, *args, cfg_file=None, log_stdout=False):
+    self.runner.start(*args, cfg_file=cfg_file, log_stdout=log_stdout)
+
+  def stop(self):
+    self.runner.stop()
