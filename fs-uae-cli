@@ -5,6 +5,7 @@ import sys
 import argparse
 import os
 import subprocess
+import logging
 
 import fsuaetools as ft
 
@@ -12,6 +13,8 @@ import fsuaetools as ft
 wb_files = [
   'L/aux-handler',
   'C/Mount',
+  'C/Dir',
+  'C/List',
   'Devs/serial.device'
 ]
 
@@ -22,8 +25,9 @@ mountlist = [
   "Priority   = 5"
 ]
 
-startup_sequence = [
+shell_startup = [
   "C:Mount AUX:",
+  "cd cwd:",
   "newshell aux:"
 ]
 
@@ -40,6 +44,21 @@ def first_line_cb():
     subprocess.check_call(os.path.join(path, "iterm_focus"))
 
 
+def create_fsuae_config(serial_port, fs_root, cwd):
+  cfg = fsuae_cfg[:]
+  logging.info("serial=%s", serial_port)
+  cfg.append("serial_port = " + serial_port)
+  # root hd
+  logging.info("hd0=%s (root)", fs_root)
+  cfg.append("hard_drive_0 = " + fs_root)
+  cfg.append("hard_drive_0_label = ROOT")
+  # cwd hd
+  logging.info("hd1=%s (cwd)", cwd)
+  cfg.append("hard_drive_1 = " + cwd)
+  cfg.append("hard_drive_1_label = CWD")
+  return cfg
+
+
 def main():
   app = ft.App('launcher script for running CLI commands with headless FS-UAE')
 
@@ -51,9 +70,8 @@ def main():
                       help='root directory of Workbench 3.1 installation')
   parser.add_argument('-f', '--force', default=False, action='store_true',
                       help='force recreation of work dir')
-  parser.add_argument('cmd', nargs='?', default=None,
+  parser.add_argument('cmd', nargs='?', default=[],
                       help='command to launch')
-
   app.parse_args()
 
   # overwrite settings
@@ -62,27 +80,40 @@ def main():
   cfg.set_cli_work_dir(args.work_dir)
   cfg.set_cli_wb_root(args.work_dir)
 
+  # shell or prog mode?
+  cmd = args.cmd
+  shell_mode = len(cmd) == 0
+  if shell_mode:
+    cwd = os.path.realpath(os.getcwd())
+  else:
+    cwd = os.path.realpath(os.path.dirname(cmd[0]))
+
   app.setup()
+
+  # function to check if fs-uae is gone
+  def check_exit():
+    return not app.is_running()
 
   # setup conio
   conio = ft.ConIOPty()
-  shell = ft.Shell(conio, first_line_cb)
-  fsuae_cfg.append("serial_port = " + conio.ttyname())
+  shell = ft.Shell(conio, first_line_cb, check_exit)
 
   # setup work dir
   wd = ft.WorkDir(cfg.get_cli_work_dir())
-  fsuae_cfg.append("hard_drive_0 = " + wd.get_fs_root())
+
+  # create config
+  uae_cfg = create_fsuae_config(conio.ttyname(), wd.get_fs_root(), cwd)
+  wd.create_fsuae_config(uae_cfg)
 
   # copy and create files
   wb_root = cfg.get_cli_wb_root()
   wd.copy_files(wb_root, wb_files)
   wd.create_mountlist(mountlist)
-  wd.create_startup_sequence(startup_sequence)
-  wd.create_fsuae_config(fsuae_cfg)
+  wd.create_startup_sequence(shell_startup)
 
   try:
     app.start(cfg_file=wd.get_cfg_file_name())
-    shell.run_loop()
+    shell.run()
   finally:
     app.stop()
     shell.close()

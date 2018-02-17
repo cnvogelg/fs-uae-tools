@@ -32,10 +32,10 @@ class WorkDir(object):
       else:
         logging.info("found sub dir: %s", d)
 
-  def copy_files(self, src, files, force=False):
+  def copy_files(self, src_dir, files, force=False):
     # setup files from wb root
     for f in files:
-      src = os.path.join(src, f)
+      src = os.path.join(src_dir, f)
       dst = os.path.join(self.fs_root, f)
       dst_dir = os.path.dirname(dst)
       if not os.path.isdir(dst_dir):

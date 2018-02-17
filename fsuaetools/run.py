@@ -161,6 +161,11 @@ class Runner(object):
     logging.info("start cmd: %r", cmd)
     self.proc = subprocess.Popen(cmd)
 
+  def is_running(self):
+    if self.proc is None:
+      return False
+    return self.proc.poll() is None
+
   def stop(self):
     if self.proc is None:
       return

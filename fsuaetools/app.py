@@ -109,3 +109,6 @@ class App(object):
 
   def stop(self):
     self.runner.stop()
+
+  def is_running(self):
+    return self.runner.is_running()

@@ -1,0 +1,9 @@
+==id $Id: uae_lib.sfd 0.1 $
+==base _UAEBase
+==basetype struct UAEResource *
+==libname uae.resource
+==bias 6
+==public
+==include <resources/uae.h>
+APTR UAEGetFunc (const char *name) (a0)
+==end

@@ -10,9 +10,10 @@ class Shell(object):
   header = "New Shell process"
   footer = "Process {} ending"
 
-  def __init__(self, conio, first_line_cb=None):
+  def __init__(self, conio, first_line_cb=None, check_exit_cb=None):
     self.conio = conio
     self.first_line_cb = first_line_cb
+    self.check_exit_cb = check_exit_cb
     self.in_fd = sys.stdin.fileno()
     self.old_settings = termios.tcgetattr(self.in_fd)
     tty.setraw(self.in_fd)
@@ -43,14 +44,14 @@ class Shell(object):
     if self.line == self.footer.format(self.shell_num):
       return True
 
-  def run_loop(self):
+  def run(self):
     self.line = ""
     self.first_line = True
     conio_fd = self.conio.fileno()
     stay = True
     out = sys.stdout
     while stay:
-      rl = select.select([self.in_fd, conio_fd],[],[])[0]
+      rl = select.select([self.in_fd, conio_fd],[],[], 0.5)[0]
       # shell output
       if conio_fd in rl:
         s = self.conio.read(1)
@@ -65,4 +66,9 @@ class Shell(object):
         if ord(c[0]) == 127: # DEL
           c = chr(8) # Backspace
         self.conio.write(c)
+      # check emu exit
+      if self.check_exit_cb is not None:
+        done = self.check_exit_cb()
+        if done:
+          stay = False
     out.write("\n\r")
