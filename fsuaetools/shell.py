@@ -7,12 +7,17 @@ import select
 
 class Shell(object):
 
+  header = "New Shell process"
+  footer = "Process {} ending"
+
   def __init__(self, conio, first_line_cb=None):
     self.conio = conio
     self.first_line_cb = first_line_cb
     self.in_fd = sys.stdin.fileno()
     self.old_settings = termios.tcgetattr(self.in_fd)
     tty.setraw(self.in_fd)
+    self.shell_num = None
+    self.exit = False
 
   def close(self):
     termios.tcsetattr(self.in_fd, termios.TCSADRAIN, self.old_settings)
@@ -30,10 +35,13 @@ class Shell(object):
         # call callback?
         if self.first_line_cb is not None:
           self.first_line_cb()
-      # end shell mode?
-      if "endcli" in self.line or "endshell" in self.line:
-        return True
+        # shell header?
+        if self.line.startswith(self.header):
+          self.shell_num = int(self.line[-1])
       self.line = ""
+    # check for shell exit
+    if self.line == self.footer.format(self.shell_num):
+      return True
 
   def run_loop(self):
     self.line = ""
@@ -57,4 +65,4 @@ class Shell(object):
         if ord(c[0]) == 127: # DEL
           c = chr(8) # Backspace
         self.conio.write(c)
-    out.write("\rdone\r")
+    out.write("\n\r")
