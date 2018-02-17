@@ -15,10 +15,12 @@ class Shell(object):
     self.first_line_cb = first_line_cb
     self.check_exit_cb = check_exit_cb
     self.in_fd = sys.stdin.fileno()
-    self.old_settings = termios.tcgetattr(self.in_fd)
-    tty.setraw(self.in_fd)
     self.shell_num = None
     self.exit = False
+
+  def start(self):
+    self.old_settings = termios.tcgetattr(self.in_fd)
+    tty.setraw(self.in_fd)
 
   def close(self):
     termios.tcsetattr(self.in_fd, termios.TCSADRAIN, self.old_settings)
@@ -44,7 +46,7 @@ class Shell(object):
     if self.line == self.footer.format(self.shell_num):
       return True
 
-  def run(self):
+  def run(self, add_final_nl=True):
     self.line = ""
     self.first_line = True
     conio_fd = self.conio.fileno()
@@ -71,4 +73,5 @@ class Shell(object):
         done = self.check_exit_cb()
         if done:
           stay = False
-    out.write("\n\r")
+    if add_final_nl:
+      out.write("\n\r")
