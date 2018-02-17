@@ -28,7 +28,8 @@ mountlist = [
 shell_startup = [
   "C:Mount AUX:",
   "cd cwd:",
-  "newshell aux:"
+  "newshell aux:",
+  "uaetool kill"
 ]
 
 fsuae_cfg = [
@@ -36,12 +37,6 @@ fsuae_cfg = [
   "window_hidden = 1",
   "floppy_drive_volume = 0"
 ]
-
-
-def first_line_cb():
-  if sys.platform.startswith('darwin'):
-    path = os.path.dirname(os.path.realpath(__file__))
-    subprocess.check_call(os.path.join(path, "iterm_focus"))
 
 
 def create_fsuae_config(serial_port, fs_root, cwd):
@@ -61,6 +56,7 @@ def create_fsuae_config(serial_port, fs_root, cwd):
 
 def main():
   app = ft.App('launcher script for running CLI commands with headless FS-UAE')
+  my_path = os.path.dirname(os.path.realpath(__file__))
 
   # setup extra args
   parser = app.get_parser()
@@ -94,6 +90,10 @@ def main():
   def check_exit():
     return not app.is_running()
 
+  def first_line_cb():
+    if sys.platform.startswith('darwin'):
+      subprocess.check_call(os.path.join(my_path, "iterm_focus"))
+
   # setup conio
   conio = ft.ConIOPty()
   shell = ft.Shell(conio, first_line_cb, check_exit)
@@ -108,6 +108,7 @@ def main():
   # copy and create files
   wb_root = cfg.get_cli_wb_root()
   wd.copy_files(wb_root, wb_files)
+  wd.copy_files(os.path.join(my_path, "amiga"), ["uaetool"])
   wd.create_mountlist(mountlist)
   wd.create_startup_sequence(shell_startup)
 
