@@ -25,9 +25,10 @@ mountlist = [
   "Priority   = 5"
 ]
 
-startup = [
+startup_sequence = [
   "C:Mount AUX:",
-  "cd cwd:"
+  "cd cwd:",
+  "newshell aux:"
 ]
 
 fsuae_cfg = [
@@ -52,16 +53,13 @@ def build_fsuae_config(serial_port, fs_root, cwd):
   return cfg
 
 
-def build_startup_sequence(cmd):
-  ss = startup[:]
-  # shell mode
-  if len(cmd) == 0:
-    ss.append("newshell aux:")
-    logging.info("shell mode!")
+def build_shell_startup(cmd):
+  ss = []
   # prog mode
-  else:
-    ss.append("{} <>aux: {}".format(cmd[0], " ".join(cmd[1:])))
-    ss.append("uaetool kill")
+  if len(cmd) > 0:
+    ss.append(' '.join(cmd))
+    ss.append("root:c/uaetool quiet kill")
+    ss.append("endshell")
     logging.info("prog mode: %r", cmd)
   return ss
 
@@ -105,6 +103,7 @@ def main():
   def first_line_cb():
     if sys.platform.startswith('darwin'):
       subprocess.check_call(os.path.join(my_path, "iterm_focus"))
+    return shell_mode
 
   # create conio
   conio = ft.ConIOPty()
@@ -120,11 +119,12 @@ def main():
   # copy some essential files
   wb_root = cfg.get_cli_wb_root()
   wd.copy_files(wb_root, wb_files)
-  wd.copy_files(os.path.join(my_path, "amiga"), ["uaetool"])
+  wd.copy_file(os.path.join(my_path, "amiga", "uaetool"), "c")
   # create some files
   wd.create_mountlist(mountlist)
-  ss = build_startup_sequence(cmd)
-  wd.create_startup_sequence(ss)
+  wd.create_startup_sequence(startup_sequence)
+  ss = build_shell_startup(cmd)
+  wd.create_shell_startup(ss)
 
   try:
     shell.start()

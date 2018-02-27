@@ -47,6 +47,19 @@ class WorkDir(object):
         shutil.copy(src, dst)
         logging.info("copy: %s -> %s", src, dst)
 
+  def copy_file(self, src_file, dst_path, force=False):
+    name = os.path.basename(src_file)
+    dst_dir = os.path.join(self.fs_root, dst_path)
+    dst = os.path.join(dst_dir, name)
+    if not os.path.isdir(dst_dir):
+      logging.info("create sub dir: %s", dst_dir)
+      os.makedirs(dst_dir)
+    if not os.path.isfile(dst) or force:
+      if os.path.exists(dst):
+        os.remove(dst)
+      shutil.copy(src_file, dst)
+      logging.info("copy: %s -> %s", src_file, dst)
+
   def create_mountlist(self, lines):
     ml_path = os.path.join(self.fs_root, "Devs", "MountList")
     logging.info("creating mountlist")
@@ -57,6 +70,13 @@ class WorkDir(object):
   def create_startup_sequence(self, lines):
     ss_path = os.path.join(self.fs_root, "S", "Startup-Sequence")
     logging.info("creating startup-sequence")
+    with open(ss_path, "w") as fh:
+      for l in lines:
+        fh.write(l + "\n")
+
+  def create_shell_startup(self, lines):
+    ss_path = os.path.join(self.fs_root, "S", "Shell-Startup")
+    logging.info("creating shell-startup")
     with open(ss_path, "w") as fh:
       for l in lines:
         fh.write(l + "\n")

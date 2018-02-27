@@ -26,6 +26,8 @@ class Shell(object):
     termios.tcsetattr(self.in_fd, termios.TCSADRAIN, self.old_settings)
 
   def _handle_line(self, s):
+    keep_first = False
+    first_line = None
     ch = ord(s)
     if (ch & 0x7f) >= 32 and ch != 127:
       self.line += s
@@ -37,31 +39,40 @@ class Shell(object):
         self.first_line = False
         # call callback?
         if self.first_line_cb is not None:
-          self.first_line_cb()
+          keep_first = self.first_line_cb()
         # shell header?
         if self.line.startswith(self.header):
           self.shell_num = int(self.line[-1])
+        first_line = self.line + "\n"
       self.line = ""
     # check for shell exit
     if self.line == self.footer.format(self.shell_num):
-      return True
+      return False, False, first_line
+    else:
+      return True, keep_first, first_line
 
   def run(self, add_final_nl=True):
     self.line = ""
     self.first_line = True
     conio_fd = self.conio.fileno()
     stay = True
+    show = False
     out = sys.stdout
     while stay:
       rl = select.select([self.in_fd, conio_fd],[],[], 0.5)[0]
       # shell output
       if conio_fd in rl:
         s = self.conio.read(1)
-        # write to
-        out.write(s)
-        out.flush()
-        if self._handle_line(s):
-          stay = False
+        # write to our console
+        if show:
+          out.write(s)
+          out.flush()
+        stay, keep_first, first_line = self._handle_line(s)
+        if first_line is not None:
+          show = True
+        if keep_first:
+          out.write(first_line)
+          out.flush()
       # user input from stdin
       if self.in_fd in rl:
         c = sys.stdin.read(1)
