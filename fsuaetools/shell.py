@@ -17,13 +17,17 @@ class Shell(object):
     self.in_fd = sys.stdin.fileno()
     self.shell_num = None
     self.exit = False
+    self.is_tty = False
 
   def start(self):
-    self.old_settings = termios.tcgetattr(self.in_fd)
-    tty.setraw(self.in_fd)
+    self.is_tty = os.isatty(self.in_fd)
+    if self.is_tty:
+      self.old_settings = termios.tcgetattr(self.in_fd)
+      tty.setraw(self.in_fd)
 
   def close(self):
-    termios.tcsetattr(self.in_fd, termios.TCSADRAIN, self.old_settings)
+    if self.is_tty:
+      termios.tcsetattr(self.in_fd, termios.TCSADRAIN, self.old_settings)
 
   def _handle_line(self, s):
     keep_first = False
@@ -76,9 +80,10 @@ class Shell(object):
       # user input from stdin
       if self.in_fd in rl:
         c = sys.stdin.read(1)
-        if ord(c[0]) == 127: # DEL
-          c = chr(8) # Backspace
-        self.conio.write(c)
+        if len(c)>0:
+          if ord(c[0]) == 127: # DEL
+            c = chr(8) # Backspace
+          self.conio.write(c)
       # check emu exit
       if self.check_exit_cb is not None:
         done = self.check_exit_cb()
