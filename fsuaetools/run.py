@@ -103,7 +103,7 @@ class Runner(object):
       raise IOError("bin dir not found!")
 
     # binary name
-    if bin_name is None:
+    if bin_name is None or len(bin_name) == 0:
       bin_name = self.get_default_bin_name()
     logging.info("binary name: '%s'", bin_name)
 

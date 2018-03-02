@@ -8,8 +8,8 @@ class Config(object):
     self.cfg = configparser.ConfigParser()
     self.cfg.add_section("fs-uae")
     self.cfg.set("fs-uae", "data-dir", "~/Documents/FS-UAE")
-    self.cfg.set("fs-uae", "bin-dev-dir", "~/fs-uae-dev")
-    self.cfg.set("fs-uae", "bin-rel-dir", "~/fs-uae-dev")
+    self.cfg.set("fs-uae", "bin-dir", "")
+    self.cfg.set("fs-uae", "bin-name", "")
     self.cfg.add_section("cli")
     self.cfg.set("cli", "work-dir", "~/.fs-uae-cli")
     self.cfg.set("cli", "wb-root", "~/amiga/Workbench3.1")
@@ -27,19 +27,19 @@ class Config(object):
   def get_data_dir(self):
     return os.path.expanduser(self.cfg.get('fs-uae', 'data-dir'))
 
-  def set_bin_dev_dir(self, bin_dir):
+  def set_bin_dir(self, bin_dir):
     if bin_dir is not None:
-      self.cfg.set("fs-uae", "bin-dev-dir", bin_dir)
+      self.cfg.set("fs-uae", "bin-dir", bin_dir)
 
-  def get_bin_dev_dir(self):
-    return os.path.expanduser(self.cfg.get('fs-uae', 'bin-dev-dir'))
+  def get_bin_dir(self):
+    return os.path.expanduser(self.cfg.get('fs-uae', 'bin-dir'))
 
-  def set_bin_rel_dir(self, bin_dir):
-    if bin_dir is not None:
-      self.cfg.set("fs-uae", "bin-rel-dir", bin_dir)
+  def set_bin_name(self, bin_name):
+    if bin_name is not None:
+      self.cfg.set("fs-uae", "bin-name", bin_name)
 
-  def get_bin_rel_dir(self):
-    return os.path.expanduser(self.cfg.get('fs-uae', 'bin-rel-dir'))
+  def get_bin_name(self):
+    return self.cfg.get('fs-uae', 'bin-name')
 
   # cli
 

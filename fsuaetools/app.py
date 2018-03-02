@@ -28,18 +28,14 @@ class App(object):
   def _add_runner_options(self):
     self.parser.add_argument('-C', '--config-file', default=None,
                         help='path of the configuration file')
-    self.parser.add_argument('-d', '--dev-binary', default=False, action='store_true',
-                        help='use development binary (otherwise release)')
-    self.parser.add_argument('-s', '--sys-binary', default=False, action='store_true',
-                        help='use system binary')
+    self.parser.add_argument('-b', '--bin-name', default=None,
+                        help='overwrite name of FS-UAE binary')
     self.parser.add_argument('-V', '--fs-uae-version', default=None,
-                        help='Select FS-UAE version to run')
+                        help='Select FS-UAE version to run if bin-dir contains multiple')
     self.parser.add_argument('-F', '--data-dir', default=None,
                         help='FS-UAE data directory, e.g. ~/Documents/FS-UAE')
-    self.parser.add_argument('-D', '--bin-dev-dir', default=None,
-                        help='FS-UAE binary directory of development builds')
-    self.parser.add_argument('-R', '--bin-rel-dir', default=None,
-                        help='FS-UAE binary directory of release builds')
+    self.parser.add_argument('-B', '--bin-dir', default=None,
+                        help='overwrite FS-UAE binary directory')
 
   def _setup_logging(self):
     # setup level
@@ -70,8 +66,8 @@ class App(object):
     self.cfg.read(self.args.config_file)
     # overwrite values given by args
     self.cfg.set_data_dir(self.args.data_dir)
-    self.cfg.set_bin_dev_dir(self.args.bin_dev_dir)
-    self.cfg.set_bin_rel_dir(self.args.bin_rel_dir)
+    self.cfg.set_bin_dir(self.args.bin_dir)
+    self.cfg.set_bin_name(self.args.bin_name)
 
   def get_args(self):
     return self.args
@@ -85,17 +81,16 @@ class App(object):
     runner = Runner()
     # pick binary dir
     if bin_dir is None:
-      if args.sys_binary:
+      # try to find binary first
+      bin_dir = runner.find_bin_dir(cfg.get_bin_dir(), ver=args.fs_uae_version)
+      # fallback to default dir
+      if bin_dir is None:
         bin_dir = runner.get_default_bin_dir()
-      elif args.dev_binary:
-        bin_dir = runner.find_bin_dir(cfg.get_bin_dev_dir(), ver=args.fs_uae_version)
-      else:
-        bin_dir = runner.find_bin_dir(cfg.get_bin_rel_dir(), ver=args.fs_uae_version)
     # pick data dir
     if data_dir is None:
       data_dir = cfg.get_data_dir()
     # setup runner
-    runner.setup(bin_dir, data_dir)
+    runner.setup(bin_dir, data_dir, cfg.get_bin_name())
     self.runner = runner
 
   def get_fs_uae_bin(self):
