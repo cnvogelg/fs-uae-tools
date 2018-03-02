@@ -18,24 +18,26 @@ class App(object):
 
   def _add_logging_options(self):
     """add logging options (-v, -q, -L) to an argparse"""
-    self.parser.add_argument('-v', '--verbose', action='count', default=0,
-                             help="be more verbose")
-    self.parser.add_argument('-q', '--quiet', action='store_true', default=False,
-                             help="be totally quiet")
-    self.parser.add_argument('-L', '--log-file', default=None,
-                             help="write tool output to log file")
+    grp = self.parser.add_argument_group("logging")
+    grp.add_argument('-v', '--verbose', action='count', default=0,
+                     help="be more verbose")
+    grp.add_argument('-q', '--quiet', action='store_true', default=False,
+                     help="be totally quiet")
+    grp.add_argument('-L', '--log-file', default=None,
+                     help="write tool output to log file")
 
   def _add_runner_options(self):
-    self.parser.add_argument('-C', '--config-file', default=None,
-                        help='path of the configuration file')
-    self.parser.add_argument('-b', '--bin-name', default=None,
-                        help='overwrite name of FS-UAE binary')
-    self.parser.add_argument('-V', '--fs-uae-version', default=None,
-                        help='Select FS-UAE version to run if bin-dir contains multiple')
-    self.parser.add_argument('-F', '--data-dir', default=None,
-                        help='FS-UAE data directory, e.g. ~/Documents/FS-UAE')
-    self.parser.add_argument('-B', '--bin-dir', default=None,
-                        help='overwrite FS-UAE binary directory')
+    grp = self.parser.add_argument_group("runner")
+    grp.add_argument('-C', '--config-file', default=None,
+                     help='path of the configuration file')
+    grp.add_argument('-b', '--bin-name', default=None,
+                     help='overwrite name of FS-UAE binary')
+    grp.add_argument('-V', '--fs-uae-version', default=None,
+                     help='Select FS-UAE version to run if bin-dir contains multiple')
+    grp.add_argument('-F', '--data-dir', default=None,
+                     help='FS-UAE data directory, e.g. ~/Documents/FS-UAE')
+    grp.add_argument('-B', '--bin-dir', default=None,
+                     help='overwrite FS-UAE binary directory')
 
   def _setup_logging(self):
     # setup level

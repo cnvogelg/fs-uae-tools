@@ -27,7 +27,6 @@ mountlist = [
 
 startup_sequence = [
   "C:Mount AUX:",
-  "cd cwd:",
   "newshell aux:"
 ]
 
@@ -37,24 +36,35 @@ fsuae_cfg = [
   "floppy_drive_volume = 0"
 ]
 
+num_hd = 0
 
-def build_fsuae_config(serial_port, fs_root, cwd):
+def add_fsuae_hd_dir(cfg, dir_path, label):
+  # add hd
+  global num_hd
+  logging.info("hd%d=%s (%s)", num_hd, dir_path, label)
+  cfg.append("hard_drive_%d = %s" % (num_hd, dir_path))
+  cfg.append("hard_drive_%d_label = %s" % (num_hd, label))
+  num_hd += 1
+
+
+def build_fsuae_config(serial_port, fs_root):
   cfg = fsuae_cfg[:]
   logging.info("serial=%s", serial_port)
   cfg.append("serial_port = " + serial_port)
-  # root hd
-  logging.info("hd0=%s (root)", fs_root)
-  cfg.append("hard_drive_0 = " + fs_root)
-  cfg.append("hard_drive_0_label = ROOT")
-  # cwd hd
-  logging.info("hd1=%s (cwd)", cwd)
-  cfg.append("hard_drive_1 = " + cwd)
-  cfg.append("hard_drive_1_label = CWD")
+  add_fsuae_hd_dir(cfg, fs_root, "ROOT")
   return cfg
 
 
-def build_shell_startup(cmd):
+def add_vamos_volumes(cfg, vamos_cfg):
+  volumes = vamos_cfg.get_volumes()
+  for vol_name in volumes:
+    vol_sys_path = volumes[vol_name]
+    add_fsuae_hd_dir(cfg, vol_sys_path, vol_name)
+
+
+def build_shell_startup(cmd, cwd):
   ss = []
+  ss.append("cd " + cwd)
   # prog mode
   if len(cmd) > 0:
     ss.append(' '.join(cmd))
@@ -68,16 +78,22 @@ def main():
   app = ft.App('launcher script for running CLI commands with headless FS-UAE')
   my_path = os.path.dirname(os.path.realpath(__file__))
 
+  vcfg = ft.VamosCfg()
+
   # setup extra args
   parser = app.get_parser()
-  parser.add_argument('-w', '--work-dir', default=None,
-                      help='working directory')
-  parser.add_argument('-r', '--wb-root', default=None,
-                      help='root directory of Workbench 3.1 installation')
-  parser.add_argument('-f', '--force', default=False, action='store_true',
-                      help='force recreation of work dir')
-  parser.add_argument('cmd', nargs='*',
-                      help='command to launch')
+  vcfg.add_options(parser)
+
+  grp = parser.add_argument_group("cli")
+  grp.add_argument('-w', '--work-dir', default=None,
+                   help='working directory')
+  grp.add_argument('-r', '--wb-root', default=None,
+                   help='root directory of Workbench 3.1 installation')
+  grp.add_argument('-f', '--force', default=False, action='store_true',
+                   help='force recreation of work dir')
+  grp.add_argument('cmd', nargs='*',
+                   help='command to launch')
+
   app.parse_args()
 
   # overwrite settings
@@ -85,6 +101,7 @@ def main():
   args = app.get_args()
   cfg.set_cli_work_dir(args.work_dir)
   cfg.set_cli_wb_root(args.work_dir)
+  vcfg.parse_args(args)
 
   # shell or prog mode?
   cmd = args.cmd
@@ -113,7 +130,18 @@ def main():
   shell = ft.Shell(conio, first_line_cb, check_exit)
 
   # create config
-  uae_cfg = build_fsuae_config(conio.ttyname(), wd.get_fs_root(), cwd)
+  has_vcfg = vcfg.is_valid()
+  uae_cfg = build_fsuae_config(conio.ttyname(), wd.get_fs_root())
+  if has_vcfg:
+    add_vamos_volumes(uae_cfg, vcfg)
+    vol, rem = vcfg.map_sys_path(cwd)
+    if cwd is None:
+      logging.error("Can't map current dir '%s' to any vamos volume!", )
+    ami_cwd = vol + ":"
+    logging.info("map cwd to vamos volume: %s:%s", vol, rem)
+  else:
+    add_fsuae_hd_dir(uae_cfg, cwd, "CWD")
+    ami_cwd = "cwd:"
   wd.create_fsuae_config(uae_cfg)
 
   # copy some essential files
@@ -123,7 +151,7 @@ def main():
   # create some files
   wd.create_mountlist(mountlist)
   wd.create_startup_sequence(startup_sequence)
-  ss = build_shell_startup(cmd)
+  ss = build_shell_startup(cmd, ami_cwd)
   wd.create_shell_startup(ss)
 
   try:
