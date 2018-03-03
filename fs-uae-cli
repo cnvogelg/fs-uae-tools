@@ -64,14 +64,34 @@ def add_vamos_volumes(cfg, vamos_cfg):
 
 def build_shell_startup(cmd, cwd):
   ss = []
+  ss.append("failat 255")
   ss.append("cd " + cwd)
   # prog mode
   if len(cmd) > 0:
     ss.append(' '.join(cmd))
+    ss.append('echo "$RC" >root:rc')
     ss.append("root:c/uaetool quiet kill")
     ss.append("endshell")
     logging.info("prog mode: %r", cmd)
   return ss
+
+
+def clear_return_code(fs_root):
+  rc_file = os.path.join(fs_root, "rc")
+  if os.path.exists(rc_file):
+    os.remove(rc_file)
+
+
+def get_return_code(fs_root):
+  rc_file = os.path.join(fs_root, "rc")
+  if not os.path.exists(rc_file):
+    logging.error("no return code found!")
+    return 1
+  with open(rc_file) as fh:
+    line = fh.read()
+    rc = int(line)
+    logging.info("command returned: %d", rc)
+    return rc
 
 
 def main():
@@ -155,9 +175,11 @@ def main():
   wd.create_shell_startup(ss)
 
   try:
+    clear_return_code(wd.get_fs_root())
     shell.start()
     app.start(cfg_file=wd.get_cfg_file_name())
     shell.run(add_final_nl=shell_mode)
+    return get_return_code(wd.get_fs_root())
   finally:
     app.stop()
     shell.close()
