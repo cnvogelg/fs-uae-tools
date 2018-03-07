@@ -130,6 +130,7 @@ def main():
     cwd = os.path.realpath(os.getcwd())
   else:
     cwd = os.path.realpath(os.path.dirname(cmd[0]))
+    cmd[0] = os.path.basename(cmd[0])
 
   app.setup()
 
