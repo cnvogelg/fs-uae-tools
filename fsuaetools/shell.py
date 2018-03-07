@@ -24,6 +24,7 @@ class Shell(object):
     if self.is_tty:
       self.old_settings = termios.tcgetattr(self.in_fd)
       tty.setraw(self.in_fd)
+    self.is_out_tty = os.isatty(sys.stdout.fileno())
 
   def close(self):
     if self.is_tty:
@@ -69,12 +70,15 @@ class Shell(object):
         s = self.conio.read(1)
         # write to our console
         if show:
-          out.write(s)
-          out.flush()
+          if self.is_out_tty or s != '\r':
+            out.write(s)
+            out.flush()
         stay, keep_first, first_line = self._handle_line(s)
         if first_line is not None:
           show = True
         if keep_first:
+          if not self.is_out_tty:
+            first_line = first_line.replace('\r','')
           out.write(first_line)
           out.flush()
       # user input from stdin
